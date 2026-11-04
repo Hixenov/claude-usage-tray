@@ -1,5 +1,6 @@
 pub mod model;
 pub mod pace;
+pub mod credentials;
 
 use tauri::{
     menu::{Menu, MenuItem},
