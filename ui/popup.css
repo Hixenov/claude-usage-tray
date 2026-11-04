@@ -1,0 +1,169 @@
+:root {
+  --bg: #ffffff;
+  --fg: #1d1d21;
+  --muted: #6b6b76;
+  --track: #e6e6ec;
+  --border: #dcdce3;
+  --blue: #4a90e2;
+  --orange: #f5a623;
+  --red: #e5484d;
+  --marker: #ffffff;
+  --marker-edge: rgba(0, 0, 0, 0.35);
+  --error-bg: #fdecec;
+  --stale-bg: #fff4e0;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1f1f23;
+    --fg: #ececf1;
+    --muted: #9a9aa6;
+    --track: #34343b;
+    --border: #3a3a42;
+    --error-bg: #3a2124;
+    --stale-bg: #3a3020;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Ubuntu, sans-serif;
+  user-select: none;
+  overflow: hidden;
+}
+
+main {
+  padding: 12px 14px 10px;
+  border: 1px solid var(--border);
+}
+
+header {
+  margin-bottom: 10px;
+}
+
+.title {
+  font-weight: 600;
+}
+
+.account {
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.banner {
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+
+.banner.error {
+  background: var(--error-bg);
+}
+
+.banner.stale {
+  background: var(--stale-bg);
+}
+
+.quotas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.quota {
+  margin-bottom: 12px;
+}
+
+.quota .row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.quota .percent {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.bar {
+  position: relative;
+  height: 8px;
+  margin: 4px 0 3px;
+  border-radius: 4px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+.bar .fill {
+  height: 100%;
+  border-radius: 4px;
+}
+
+.fill.blue {
+  background: var(--blue);
+}
+
+.fill.orange {
+  background: var(--orange);
+}
+
+.fill.red {
+  background: var(--red);
+}
+
+.bar .marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--marker);
+  box-shadow: 0 0 0 1px var(--marker-edge);
+}
+
+.reset {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.loading {
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+
+footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+button {
+  font: inherit;
+  color: var(--fg);
+  background: var(--track);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+button:hover {
+  filter: brightness(1.08);
+}

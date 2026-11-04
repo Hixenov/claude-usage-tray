@@ -2,7 +2,25 @@
 <html>
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Claude Usage Monitor</title>
+    <link rel="stylesheet" href="popup.css" />
   </head>
-  <body></body>
+  <body>
+    <main id="app">
+      <header>
+        <div class="title" data-t="app_name">Claude Usage Monitor</div>
+        <div class="account" id="account"></div>
+      </header>
+      <div class="banner error" id="error" hidden></div>
+      <div class="banner stale" id="stale" hidden data-t="popup_stale"></div>
+      <ul class="quotas" id="quotas"></ul>
+      <p class="loading" id="loading" data-t="popup_loading">…</p>
+      <footer>
+        <span id="updated"></span>
+        <button type="button" id="refresh" data-t="popup_refresh">Refresh</button>
+      </footer>
+    </main>
+    <script src="popup.js"></script>
+  </body>
 </html>

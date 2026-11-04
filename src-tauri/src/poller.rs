@@ -68,6 +68,134 @@ pub fn utilization_changed(prev: Option<&Snapshot>, next: &Snapshot) -> bool {
     pairs(prev) != pairs(next)
 }
 
+// ---------------------------------------------------------------------------
+// Async loop (not unit-tested: it only wires the pure functions above to I/O).
+
+const MANUAL_THROTTLE: std::time::Duration = std::time::Duration::from_secs(10);
+const PROFILE_EVERY: std::time::Duration = std::time::Duration::from_secs(3600);
+/// Sleep in slices so a wall-clock jump (system sleep/resume) is noticed promptly.
+const SLEEP_SLICE: Duration = Duration::seconds(30);
+
+/// Wakes the polling loop now, at most once per 10 s.
+pub fn request_refresh(app: &tauri::AppHandle) {
+    use tauri::Manager;
+    let shared = app.state::<crate::Shared>();
+    let mut last = shared.last_manual.lock().unwrap();
+    if last.is_some_and(|t| t.elapsed() < MANUAL_THROTTLE) {
+        return;
+    }
+    *last = Some(std::time::Instant::now());
+    shared.refresh.notify_one();
+}
+
+pub fn spawn(app: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let client = crate::api::Client::new();
+        let mut backoff: Option<Duration> = None;
+        let mut profile_at: Option<std::time::Instant> = None;
+        loop {
+            if profile_at.is_none_or(|t| t.elapsed() >= PROFILE_EVERY) {
+                if let Some(p) = client.fetch_profile().await {
+                    use tauri::Manager;
+                    app.state::<crate::Shared>().state.lock().unwrap().profile = Some(p);
+                    profile_at = Some(std::time::Instant::now());
+                }
+            }
+            let result = client.fetch_usage().await;
+            let alerts = apply(&app, result, &mut backoff);
+            for alert in &alerts {
+                crate::notify(&app, &alert_text(&app, alert));
+            }
+            crate::tray::update(&app);
+            crate::popup::emit_state(&app);
+            wait(&app, backoff).await;
+        }
+    });
+}
+
+/// Stores a fetch result in the shared state and returns the alerts it triggers.
+fn apply(
+    app: &tauri::AppHandle,
+    result: Result<Vec<crate::model::Quota>, ApiError>,
+    backoff: &mut Option<Duration>,
+) -> Vec<crate::alerts::Alert> {
+    use tauri::Manager;
+    let shared = app.state::<crate::Shared>();
+    let mut st = shared.state.lock().unwrap();
+    let now = OffsetDateTime::now_utc();
+    match result {
+        Ok(quotas) => {
+            let snap = Snapshot { quotas, fetched_at: now };
+            if utilization_changed(st.snapshot.as_ref(), &snap) {
+                st.last_change = Some(now);
+            }
+            let mut fired = shared.fired.lock().unwrap();
+            let alerts = crate::alerts::evaluate(st.snapshot.as_ref(), &snap, &mut fired, &shared.settings, now);
+            st.snapshot = Some(snap);
+            st.last_error = None;
+            *backoff = None;
+            alerts
+        }
+        Err(e) => {
+            *backoff = next_backoff(*backoff, &e);
+            st.last_error = Some(e);
+            vec![]
+        }
+    }
+}
+
+fn alert_text(app: &tauri::AppHandle, alert: &crate::alerts::Alert) -> String {
+    use crate::alerts::Alert;
+    use crate::i18n::{format_duration, quota_name};
+    use crate::view::fill;
+    use tauri::Manager;
+    let shared = app.state::<crate::Shared>();
+    let s = &shared.strings;
+    match alert {
+        Alert::Threshold { key, utilization, resets_at, .. } => {
+            let time = resets_at
+                .map(|r| format_duration(r - OffsetDateTime::now_utc(), s.lang()))
+                .unwrap_or_else(|| "—".into());
+            let percent = format!("{}", utilization.round().clamp(0.0, 100.0));
+            fill(
+                s.t("alert_threshold"),
+                &[("name", &quota_name(key, s.lang())), ("percent", &percent), ("time", &time)],
+            )
+        }
+        Alert::Reset { key } => fill(s.t("alert_reset"), &[("name", &quota_name(key, s.lang()))]),
+    }
+}
+
+/// Sleeps until the next scheduled poll, a manual refresh, or a detected wake from sleep.
+async fn wait(app: &tauri::AppHandle, backoff: Option<Duration>) {
+    use std::sync::atomic::Ordering;
+    use tauri::Manager;
+    let shared = app.state::<crate::Shared>();
+    let ctx = {
+        let st = shared.state.lock().unwrap();
+        let now = OffsetDateTime::now_utc();
+        PollCtx {
+            now,
+            last_change: st.last_change,
+            next_reset: st.snapshot.as_ref().and_then(|s| next_reset(s, now)),
+            popup_open: shared.popup_open.load(Ordering::Relaxed),
+            backoff,
+        }
+    };
+    let deadline = ctx.now + next_delay(&ctx, &shared.settings);
+    loop {
+        let remaining = deadline - OffsetDateTime::now_utc();
+        if remaining <= Duration::ZERO {
+            return;
+        }
+        let slice = remaining.min(SLEEP_SLICE).unsigned_abs();
+        tokio::select! {
+            _ = tokio::time::sleep(slice) => {}
+            _ = shared.refresh.notified() => return,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
