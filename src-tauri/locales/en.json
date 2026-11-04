@@ -1,0 +1,23 @@
+{
+  "app_name": "Claude Usage Monitor",
+  "menu_open": "Open",
+  "menu_refresh": "Refresh",
+  "menu_autostart": "Start at login",
+  "menu_quit": "Quit",
+  "tooltip_updated_ago": "(updated {time} ago)",
+  "err_no_token": "Sign in to Claude Code: claude auth login",
+  "err_auth_expired": "Claude Code token expired — open Claude Code or run claude auth login",
+  "err_rate_limited": "Too many requests, retrying later",
+  "err_network": "Can't reach api.anthropic.com",
+  "err_server": "Server error ({code})",
+  "err_http": "HTTP error {code}",
+  "err_settings": "Settings file error: {msg}",
+  "popup_updated": "Updated {time} ago",
+  "popup_updated_now": "Updated just now",
+  "popup_refresh": "Refresh",
+  "popup_stale": "Data may be out of date",
+  "popup_resets_in": "resets in {time}",
+  "popup_loading": "Loading…",
+  "alert_threshold": "{name} limit: {percent}%, resets in {time}",
+  "alert_reset": "{name} limit has reset"
+}

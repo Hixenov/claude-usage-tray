@@ -2,6 +2,8 @@ pub mod model;
 pub mod pace;
 pub mod credentials;
 pub mod api;
+pub mod i18n;
+pub mod settings;
 
 use tauri::{
     menu::{Menu, MenuItem},

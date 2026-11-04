@@ -1,0 +1,23 @@
+{
+  "app_name": "Claude Usage Monitor",
+  "menu_open": "Открыть",
+  "menu_refresh": "Обновить",
+  "menu_autostart": "Запускать при входе",
+  "menu_quit": "Выход",
+  "tooltip_updated_ago": "(обновлено {time} назад)",
+  "err_no_token": "Войдите в Claude Code: claude auth login",
+  "err_auth_expired": "Токен Claude Code истёк — откройте Claude Code или выполните claude auth login",
+  "err_rate_limited": "Слишком много запросов, повтор позже",
+  "err_network": "Нет связи с api.anthropic.com",
+  "err_server": "Ошибка сервера ({code})",
+  "err_http": "Ошибка HTTP {code}",
+  "err_settings": "Ошибка в файле настроек: {msg}",
+  "popup_updated": "Обновлено {time} назад",
+  "popup_updated_now": "Обновлено только что",
+  "popup_refresh": "Обновить",
+  "popup_stale": "Данные могут быть устаревшими",
+  "popup_resets_in": "сброс через {time}",
+  "popup_loading": "Загрузка…",
+  "alert_threshold": "Лимит «{name}»: {percent}%, сброс через {time}",
+  "alert_reset": "Лимит «{name}» восстановлен"
+}
