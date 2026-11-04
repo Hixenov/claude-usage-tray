@@ -48,6 +48,7 @@ pub fn next_delay(ctx: &PollCtx, s: &Settings) -> Duration {
 pub fn next_backoff(prev: Option<Duration>, err: &ApiError) -> Option<Duration> {
     match err {
         ApiError::AuthExpired => Some(BACKOFF_START),
+        ApiError::TokenUnreadable => Some(MIN_DELAY),
         ApiError::RateLimited {
             retry_after: Some(n),
         } => {
@@ -366,6 +367,14 @@ mod tests {
         assert_eq!(
             next_backoff(Some(Duration::seconds(900)), &ApiError::AuthExpired),
             Some(Duration::seconds(60))
+        );
+    }
+
+    #[test]
+    fn unreadable_token_retries_soon() {
+        assert_eq!(
+            next_backoff(Some(Duration::seconds(600)), &ApiError::TokenUnreadable),
+            Some(Duration::seconds(30))
         );
     }
 

@@ -12,6 +12,7 @@
   "err_server": "Server error ({code})",
   "err_http": "HTTP error {code}",
   "err_settings": "Settings file error: {msg}",
+  "err_token_unreadable": "Could not read the Claude Code token, retrying in 30 s",
   "err_malformed": "Unexpected response from api.anthropic.com",
   "popup_updated": "Updated {time} ago",
   "popup_updated_now": "Updated just now",

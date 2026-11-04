@@ -4,7 +4,7 @@ use crate::model::Snapshot;
 use crate::pace::is_ahead;
 use crate::settings::Settings;
 use std::collections::HashSet;
-use time::OffsetDateTime;
+use time::{Duration, OffsetDateTime};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Alert {
@@ -19,12 +19,28 @@ pub enum Alert {
     },
 }
 
-/// Thresholds already handled, per quota window: `(key, threshold, resets_at unix)`.
+/// Thresholds already handled, per quota window: `(key, threshold, window id)`.
 #[derive(Default, Debug)]
 pub struct FiredSet(HashSet<(String, u8, Option<i64>)>);
 
 /// Utilization at which a quota counts as "nearly exhausted" for reset alerts.
 const RESET_ALERT_MIN: f64 = 80.0;
+
+/// The API reports reset times with sub-second precision that can drift between calls;
+/// only a move larger than this counts as a new window.
+const RESET_JITTER: Duration = Duration::minutes(5);
+
+/// Stable id of a quota window: its reset time rounded to 10 minutes.
+fn window_id(resets_at: Option<OffsetDateTime>) -> Option<i64> {
+    resets_at.map(|r| (r.unix_timestamp() + 300).div_euclid(600))
+}
+
+fn is_new_window(old: Option<OffsetDateTime>, new: Option<OffsetDateTime>) -> bool {
+    match (old, new) {
+        (Some(o), Some(n)) => (n - o).abs() > RESET_JITTER,
+        (o, n) => o != n,
+    }
+}
 
 pub fn evaluate(
     prev: Option<&Snapshot>,
@@ -43,7 +59,9 @@ pub fn evaluate(
     {
         let old = prev.and_then(|p| p.quotas.iter().find(|o| o.key == q.key));
         if let Some(old) = old {
-            if s.notify_reset && old.resets_at != q.resets_at && old.utilization >= RESET_ALERT_MIN
+            if s.notify_reset
+                && is_new_window(old.resets_at, q.resets_at)
+                && old.utilization >= RESET_ALERT_MIN
             {
                 alerts.push(Alert::Reset { key: q.key.clone() });
             }
@@ -52,7 +70,7 @@ pub fn evaluate(
             if q.utilization < f64::from(t) {
                 continue;
             }
-            let id = (q.key.clone(), t, q.resets_at.map(|r| r.unix_timestamp()));
+            let id = (q.key.clone(), t, window_id(q.resets_at));
             if !fired.0.insert(id) {
                 continue;
             }
@@ -232,6 +250,28 @@ mod tests {
             &s,
         );
         assert_eq!(thresholds(&ahead), vec![80]);
+    }
+
+    #[test]
+    fn reset_time_jitter_is_not_a_reset() {
+        let s = Settings::default();
+        let jittered = R1 + Duration::milliseconds(1500);
+        let steps = [
+            snap(&[("five_hour", 90.0, R1)]),
+            snap(&[("five_hour", 91.0, jittered)]),
+        ];
+        assert!(run(&steps, &s).is_empty());
+    }
+
+    #[test]
+    fn reset_time_jitter_does_not_rearm_thresholds() {
+        let s = Settings::default();
+        let steps = [
+            snap(&[("five_hour", 70.0, R1)]),
+            snap(&[("five_hour", 82.0, R1 - Duration::milliseconds(400))]),
+            snap(&[("five_hour", 83.0, R1 + Duration::seconds(2))]),
+        ];
+        assert!(run(&steps, &s).is_empty());
     }
 
     #[test]

@@ -67,6 +67,16 @@ pub fn parse_profile(body: &str) -> Option<Profile> {
     })
 }
 
+/// A missing token means "not signed in"; an unreadable one is treated as transient.
+pub fn map_cred_error(e: &credentials::CredError) -> ApiError {
+    match e {
+        credentials::CredError::NotFound => ApiError::NoToken,
+        credentials::CredError::Malformed | credentials::CredError::Io(_) => {
+            ApiError::TokenUnreadable
+        }
+    }
+}
+
 /// `None` for success (2xx); otherwise the error the status represents.
 pub fn map_status(status: u16, retry_after: Option<&str>) -> Option<ApiError> {
     match status {
@@ -101,7 +111,7 @@ impl Client {
     }
 
     async fn get(&self, path: &str) -> Result<String, ApiError> {
-        let token = credentials::load().map_err(|_| ApiError::NoToken)?;
+        let token = credentials::load().map_err(|e| map_cred_error(&e))?;
         let resp = self
             .http
             .get(format!("{BASE_URL}{path}"))
@@ -210,6 +220,20 @@ mod tests {
         assert_eq!(
             map_status(429, Some("-5")),
             Some(ApiError::RateLimited { retry_after: None })
+        );
+    }
+
+    #[test]
+    fn credential_errors_map_to_api_errors() {
+        use crate::credentials::CredError;
+        assert_eq!(map_cred_error(&CredError::NotFound), ApiError::NoToken);
+        assert_eq!(
+            map_cred_error(&CredError::Malformed),
+            ApiError::TokenUnreadable
+        );
+        assert_eq!(
+            map_cred_error(&CredError::Io("busy".into())),
+            ApiError::TokenUnreadable
         );
     }
 

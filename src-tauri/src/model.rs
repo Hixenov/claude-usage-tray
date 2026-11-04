@@ -53,8 +53,12 @@ pub struct Snapshot {
 #[derive(Clone, Debug, PartialEq)]
 pub enum ApiError {
     NoToken,
+    /// Credentials exist but could not be read right now (e.g. mid-write by Claude Code).
+    TokenUnreadable,
     AuthExpired,
-    RateLimited { retry_after: Option<u64> },
+    RateLimited {
+        retry_after: Option<u64>,
+    },
     Server(u16),
     Network(String),
     Http(u16),

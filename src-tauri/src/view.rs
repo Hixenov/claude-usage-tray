@@ -54,6 +54,7 @@ fn is_stale(st: &AppState, s: &Settings, now: OffsetDateTime) -> bool {
 pub fn error_text(e: &ApiError, strings: &Strings) -> String {
     match e {
         ApiError::NoToken => strings.t("err_no_token").to_string(),
+        ApiError::TokenUnreadable => strings.t("err_token_unreadable").to_string(),
         ApiError::AuthExpired => strings.t("err_auth_expired").to_string(),
         ApiError::RateLimited { .. } => strings.t("err_rate_limited").to_string(),
         ApiError::Network(_) => strings.t("err_network").to_string(),
@@ -357,6 +358,12 @@ mod tests {
             error_text(&ApiError::Malformed, &en),
             "Unexpected response from api.anthropic.com"
         );
+    }
+
+    #[test]
+    fn unreadable_token_text() {
+        let en = Strings::new(Lang::En);
+        assert!(error_text(&ApiError::TokenUnreadable, &en).contains("token"));
     }
 
     #[test]

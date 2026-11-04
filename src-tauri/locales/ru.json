@@ -12,6 +12,7 @@
   "err_server": "Ошибка сервера ({code})",
   "err_http": "Ошибка HTTP {code}",
   "err_settings": "Ошибка в файле настроек: {msg}",
+  "err_token_unreadable": "Не удалось прочитать токен Claude Code, повтор через 30 с",
   "err_malformed": "Неожиданный ответ от api.anthropic.com",
   "popup_updated": "Обновлено {time} назад",
   "popup_updated_now": "Обновлено только что",
