@@ -1,3 +1,4 @@
+pub mod model;
 
 use tauri::{
     menu::{Menu, MenuItem},
