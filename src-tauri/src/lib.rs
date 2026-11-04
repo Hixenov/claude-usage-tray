@@ -7,6 +7,7 @@ pub mod api;
 pub mod i18n;
 pub mod settings;
 pub mod tray_icon;
+pub mod view;
 
 use tauri::{
     menu::{Menu, MenuItem},
