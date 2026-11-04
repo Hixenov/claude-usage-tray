@@ -1,5 +1,5 @@
 {
-  "app_name": "Claude Usage Monitor",
+  "app_name": "Claude Usage Tray",
   "menu_open": "Open",
   "menu_refresh": "Refresh",
   "menu_autostart": "Start at login",

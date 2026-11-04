@@ -31,7 +31,9 @@ pub struct PopupView {
 
 /// Replaces `{name}` placeholders in a localized template.
 pub fn fill(template: &str, vars: &[(&str, &str)]) -> String {
-    vars.iter().fold(template.to_string(), |acc, (k, v)| acc.replace(&format!("{{{k}}}"), v))
+    vars.iter().fold(template.to_string(), |acc, (k, v)| {
+        acc.replace(&format!("{{{k}}}"), v)
+    })
 }
 
 fn visible<'a>(st: &'a AppState, s: &'a Settings) -> impl Iterator<Item = &'a Quota> {
@@ -61,7 +63,12 @@ pub fn error_text(e: &ApiError, strings: &Strings) -> String {
     }
 }
 
-pub fn build_view(st: &AppState, s: &Settings, strings: &Strings, now: OffsetDateTime) -> PopupView {
+pub fn build_view(
+    st: &AppState,
+    s: &Settings,
+    strings: &Strings,
+    now: OffsetDateTime,
+) -> PopupView {
     let lang = strings.lang();
     let quotas = visible(st, s)
         .map(|q| QuotaView {
@@ -71,7 +78,10 @@ pub fn build_view(st: &AppState, s: &Settings, strings: &Strings, now: OffsetDat
             elapsed: elapsed_fraction(q, now),
             color: bar_color(q.utilization, is_ahead(q, now)).css(),
             reset_text: q.resets_at.map(|r| {
-                fill(strings.t("popup_resets_in"), &[("time", &format_duration(r - now, lang))])
+                fill(
+                    strings.t("popup_resets_in"),
+                    &[("time", &format_duration(r - now, lang))],
+                )
             }),
         })
         .collect();
@@ -79,7 +89,10 @@ pub fn build_view(st: &AppState, s: &Settings, strings: &Strings, now: OffsetDat
         if a < Duration::minutes(1) {
             strings.t("popup_updated_now").to_string()
         } else {
-            fill(strings.t("popup_updated"), &[("time", &format_duration(a, lang))])
+            fill(
+                strings.t("popup_updated"),
+                &[("time", &format_duration(a, lang))],
+            )
         }
     });
     PopupView {
@@ -99,7 +112,13 @@ pub fn tooltip_text(st: &AppState, s: &Settings, strings: &Strings, now: OffsetD
         .tray_bars
         .iter()
         .filter_map(|key| visible(st, s).find(|q| &q.key == key))
-        .map(|q| format!("{}: {}%", quota_short(&q.key, lang), q.utilization.round().clamp(0.0, 100.0)))
+        .map(|q| {
+            format!(
+                "{}: {}%",
+                quota_short(&q.key, lang),
+                q.utilization.round().clamp(0.0, 100.0)
+            )
+        })
         .collect();
     if !parts.is_empty() {
         out.push('\n');
@@ -141,13 +160,24 @@ mod tests {
     const NOW: OffsetDateTime = datetime!(2026-11-04 12:00 UTC);
 
     fn q(key: &str, utilization: f64, resets_at: Option<OffsetDateTime>) -> Quota {
-        Quota { key: key.into(), utilization, resets_at, period: Period::from_key(key) }
+        Quota {
+            key: key.into(),
+            utilization,
+            resets_at,
+            period: Period::from_key(key),
+        }
     }
 
     fn state(quotas: Vec<Quota>, fetched_ago_min: i64) -> AppState {
         AppState {
-            snapshot: Some(Snapshot { quotas, fetched_at: NOW - Duration::minutes(fetched_ago_min) }),
-            profile: Some(Profile { email: Some("user@example.com".into()), plan: Some("Pro".into()) }),
+            snapshot: Some(Snapshot {
+                quotas,
+                fetched_at: NOW - Duration::minutes(fetched_ago_min),
+            }),
+            profile: Some(Profile {
+                email: Some("user@example.com".into()),
+                plan: Some("Pro".into()),
+            }),
             ..AppState::default()
         }
     }
@@ -164,7 +194,12 @@ mod tests {
 
     #[test]
     fn view_basic() {
-        let v = build_view(&default_state(), &Settings::default(), &Strings::new(Lang::Ru), NOW);
+        let v = build_view(
+            &default_state(),
+            &Settings::default(),
+            &Strings::new(Lang::Ru),
+            NOW,
+        );
         assert_eq!(v.email.as_deref(), Some("user@example.com"));
         assert_eq!(v.plan.as_deref(), Some("Pro"));
         assert_eq!(v.quotas.len(), 2);
@@ -180,7 +215,10 @@ mod tests {
 
     #[test]
     fn percent_is_clamped() {
-        let st = state(vec![q("five_hour", 130.0, None), q("seven_day", -2.0, None)], 0);
+        let st = state(
+            vec![q("five_hour", 130.0, None), q("seven_day", -2.0, None)],
+            0,
+        );
         let v = build_view(&st, &Settings::default(), &Strings::new(Lang::En), NOW);
         assert_eq!(v.quotas[0].percent, 100);
         assert_eq!(v.quotas[0].color, "red");
@@ -197,7 +235,10 @@ mod tests {
 
     #[test]
     fn past_reset_says_soon() {
-        let st = state(vec![q("five_hour", 10.0, Some(NOW - Duration::minutes(2)))], 0);
+        let st = state(
+            vec![q("five_hour", 10.0, Some(NOW - Duration::minutes(2)))],
+            0,
+        );
         let v = build_view(&st, &Settings::default(), &Strings::new(Lang::En), NOW);
         assert_eq!(v.quotas[0].reset_text.as_deref(), Some("resets in soon"));
         assert_eq!(v.quotas[0].elapsed, Some(1.0));
@@ -206,14 +247,20 @@ mod tests {
     #[test]
     fn ahead_of_pace_is_red() {
         // 5h window, 90% left (reset in 4.5h) → only 10% elapsed, 50% used.
-        let st = state(vec![q("five_hour", 50.0, Some(NOW + Duration::minutes(270)))], 0);
+        let st = state(
+            vec![q("five_hour", 50.0, Some(NOW + Duration::minutes(270)))],
+            0,
+        );
         let v = build_view(&st, &Settings::default(), &Strings::new(Lang::En), NOW);
         assert_eq!(v.quotas[0].color, "red");
     }
 
     #[test]
     fn hidden_quotas_excluded() {
-        let s = Settings { hidden_quotas: vec!["seven_day".into()], ..Settings::default() };
+        let s = Settings {
+            hidden_quotas: vec!["seven_day".into()],
+            ..Settings::default()
+        };
         let v = build_view(&default_state(), &s, &Strings::new(Lang::En), NOW);
         assert_eq!(v.quotas.len(), 1);
     }
@@ -224,7 +271,10 @@ mod tests {
         st.last_error = Some(ApiError::Network("boom".into()));
         let v = build_view(&st, &Settings::default(), &Strings::new(Lang::En), NOW);
         assert_eq!(v.quotas.len(), 2);
-        assert_eq!(v.error_text.as_deref(), Some("Can't reach api.anthropic.com"));
+        assert_eq!(
+            v.error_text.as_deref(),
+            Some("Can't reach api.anthropic.com")
+        );
     }
 
     #[test]
@@ -242,13 +292,23 @@ mod tests {
 
     #[test]
     fn updated_just_now() {
-        let v = build_view(&default_state(), &Settings::default(), &Strings::new(Lang::Ru), NOW);
+        let v = build_view(
+            &default_state(),
+            &Settings::default(),
+            &Strings::new(Lang::Ru),
+            NOW,
+        );
         assert_eq!(v.updated_text.as_deref(), Some("Обновлено только что"));
     }
 
     #[test]
     fn empty_state_has_no_quotas() {
-        let v = build_view(&AppState::default(), &Settings::default(), &Strings::new(Lang::En), NOW);
+        let v = build_view(
+            &AppState::default(),
+            &Settings::default(),
+            &Strings::new(Lang::En),
+            NOW,
+        );
         assert!(v.quotas.is_empty());
         assert_eq!(v.updated_text, None);
         assert!(!v.stale);
@@ -256,8 +316,13 @@ mod tests {
 
     #[test]
     fn tooltip_format() {
-        let t = tooltip_text(&default_state(), &Settings::default(), &Strings::new(Lang::Ru), NOW);
-        assert!(t.starts_with("Claude Usage Monitor"));
+        let t = tooltip_text(
+            &default_state(),
+            &Settings::default(),
+            &Strings::new(Lang::Ru),
+            NOW,
+        );
+        assert!(t.starts_with("Claude Usage Tray"));
         assert!(t.contains("5ч: 42% · 7д: 18%"), "{t}");
         assert!(!t.contains("обновлено"));
     }
@@ -275,7 +340,10 @@ mod tests {
 
     #[test]
     fn tooltip_no_token() {
-        let st = AppState { last_error: Some(ApiError::NoToken), ..AppState::default() };
+        let st = AppState {
+            last_error: Some(ApiError::NoToken),
+            ..AppState::default()
+        };
         let t = tooltip_text(&st, &Settings::default(), &Strings::new(Lang::En), NOW);
         assert!(t.contains("claude auth login"), "{t}");
     }
@@ -285,12 +353,18 @@ mod tests {
         let en = Strings::new(Lang::En);
         assert_eq!(error_text(&ApiError::Http(404), &en), "HTTP error 404");
         assert!(error_text(&ApiError::AuthExpired, &en).contains("claude auth login"));
-        assert_eq!(error_text(&ApiError::Malformed, &en), "Unexpected response from api.anthropic.com");
+        assert_eq!(
+            error_text(&ApiError::Malformed, &en),
+            "Unexpected response from api.anthropic.com"
+        );
     }
 
     #[test]
     fn tray_bars_follow_settings() {
-        let s = Settings { tray_bars: vec!["seven_day".into(), "missing".into()], ..Settings::default() };
+        let s = Settings {
+            tray_bars: vec!["seven_day".into(), "missing".into()],
+            ..Settings::default()
+        };
         let bars = tray_bars(&default_state(), &s, NOW);
         assert_eq!(bars.len(), 2);
         assert_eq!(bars[0].as_ref().map(|b| b.utilization), Some(18.0));

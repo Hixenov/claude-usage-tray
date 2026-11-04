@@ -1,7 +1,7 @@
 //! System tray icon, tooltip and menu.
 
 use crate::model::ApiError;
-use crate::{notify, popup, poller, tray_icon, view, Shared};
+use crate::{notify, poller, popup, tray_icon, view, Shared};
 use std::sync::atomic::Ordering;
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
@@ -20,8 +20,10 @@ fn icon(app: &AppHandle) -> Image<'static> {
     let shared = app.state::<Shared>();
     let st = shared.state.lock().unwrap();
     let now = time::OffsetDateTime::now_utc();
-    let error = matches!(st.last_error, Some(ApiError::NoToken | ApiError::AuthExpired))
-        || (st.snapshot.is_none() && st.last_error.is_some());
+    let error = matches!(
+        st.last_error,
+        Some(ApiError::NoToken | ApiError::AuthExpired)
+    ) || (st.snapshot.is_none() && st.last_error.is_some());
     let bars = view::tray_bars(&st, &shared.settings, now);
     let rgba = tray_icon::render(&bars, error, ICON_SIZE, shared.dark_panel);
     Image::new_owned(rgba, ICON_SIZE, ICON_SIZE)
@@ -33,8 +35,14 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", t.t("menu_open"), true, None::<&str>)?;
     let refresh = MenuItem::with_id(app, "refresh", t.t("menu_refresh"), true, None::<&str>)?;
     let autostart_on = app.autolaunch().is_enabled().unwrap_or(false);
-    let autostart =
-        CheckMenuItem::with_id(app, "autostart", t.t("menu_autostart"), true, autostart_on, None::<&str>)?;
+    let autostart = CheckMenuItem::with_id(
+        app,
+        "autostart",
+        t.t("menu_autostart"),
+        true,
+        autostart_on,
+        None::<&str>,
+    )?;
     let quit = MenuItem::with_id(app, "quit", t.t("menu_quit"), true, None::<&str>)?;
     let menu = Menu::with_items(
         app,
@@ -65,7 +73,9 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         .on_tray_icon_event(|tray, event| {
             let app = tray.app_handle();
             tauri_plugin_positioner::on_tray_event(app, &event);
-            app.state::<Shared>().tray_pos_known.store(true, Ordering::Relaxed);
+            app.state::<Shared>()
+                .tray_pos_known
+                .store(true, Ordering::Relaxed);
             if cfg!(not(target_os = "macos")) {
                 if let TrayIconEvent::Click {
                     button: MouseButton::Left,
@@ -84,7 +94,11 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
 fn toggle_autostart(app: &AppHandle, item: &CheckMenuItem<tauri::Wry>) {
     let launcher = app.autolaunch();
     let want = !launcher.is_enabled().unwrap_or(false);
-    let result = if want { launcher.enable() } else { launcher.disable() };
+    let result = if want {
+        launcher.enable()
+    } else {
+        launcher.disable()
+    };
     if let Err(e) = result {
         notify(app, &e.to_string());
     }
@@ -93,11 +107,18 @@ fn toggle_autostart(app: &AppHandle, item: &CheckMenuItem<tauri::Wry>) {
 
 /// Redraws the icon and tooltip from the current state.
 pub fn update(app: &AppHandle) {
-    let Some(tray) = app.tray_by_id(TRAY_ID) else { return };
+    let Some(tray) = app.tray_by_id(TRAY_ID) else {
+        return;
+    };
     let tooltip = {
         let shared = app.state::<Shared>();
         let st = shared.state.lock().unwrap();
-        view::tooltip_text(&st, &shared.settings, &shared.strings, time::OffsetDateTime::now_utc())
+        view::tooltip_text(
+            &st,
+            &shared.settings,
+            &shared.strings,
+            time::OffsetDateTime::now_utc(),
+        )
     };
     let _ = tray.set_icon(Some(icon(app)));
     let _ = tray.set_tooltip(Some(tooltip));

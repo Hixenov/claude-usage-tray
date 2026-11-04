@@ -26,7 +26,12 @@ pub fn parse_usage(body: &str) -> Result<Vec<Quota>, ApiError> {
                 .get("resets_at")
                 .and_then(|r| r.as_str())
                 .and_then(|r| OffsetDateTime::parse(r, &Rfc3339).ok());
-            Some(Quota { key: key.clone(), utilization, resets_at, period: Period::from_key(key) })
+            Some(Quota {
+                key: key.clone(),
+                utilization,
+                resets_at,
+                period: Period::from_key(key),
+            })
         })
         .collect();
     let rank = |k: &str| match k {
@@ -34,7 +39,11 @@ pub fn parse_usage(body: &str) -> Result<Vec<Quota>, ApiError> {
         "seven_day" => 1,
         _ => 2,
     };
-    quotas.sort_by(|a, b| rank(&a.key).cmp(&rank(&b.key)).then_with(|| a.key.cmp(&b.key)));
+    quotas.sort_by(|a, b| {
+        rank(&a.key)
+            .cmp(&rank(&b.key))
+            .then_with(|| a.key.cmp(&b.key))
+    });
     Ok(quotas)
 }
 
@@ -49,7 +58,13 @@ pub fn parse_profile(body: &str) -> Option<Profile> {
     } else {
         None
     };
-    Some(Profile { email: account.get("email").and_then(|e| e.as_str()).map(String::from), plan })
+    Some(Profile {
+        email: account
+            .get("email")
+            .and_then(|e| e.as_str())
+            .map(String::from),
+        plan,
+    })
 }
 
 /// `None` for success (2xx); otherwise the error the status represents.
@@ -79,7 +94,7 @@ impl Client {
     pub fn new() -> Client {
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(10))
-            .user_agent(concat!("claude-usage-monitor/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("claude-usage-tray/", env!("CARGO_PKG_VERSION")))
             .build()
             .expect("HTTP client configuration is static");
         Client { http }
@@ -103,7 +118,9 @@ impl Client {
         if let Some(err) = map_status(resp.status().as_u16(), retry_after.as_deref()) {
             return Err(err);
         }
-        resp.text().await.map_err(|e| ApiError::Network(e.without_url().to_string()))
+        resp.text()
+            .await
+            .map_err(|e| ApiError::Network(e.without_url().to_string()))
     }
 
     pub async fn fetch_usage(&self) -> Result<Vec<Quota>, ApiError> {
@@ -151,8 +168,10 @@ mod tests {
 
     #[test]
     fn unknown_quota_key_kept() {
-        let q = parse_usage(r#"{"seven_day_fable":{"utilization":3,"resets_at":"2026-11-10T00:00:00Z"}}"#)
-            .unwrap();
+        let q = parse_usage(
+            r#"{"seven_day_fable":{"utilization":3,"resets_at":"2026-11-10T00:00:00Z"}}"#,
+        )
+        .unwrap();
         assert_eq!(q[0].key, "seven_day_fable");
     }
 
@@ -174,7 +193,9 @@ mod tests {
         assert_eq!(map_status(401, None), Some(ApiError::AuthExpired));
         assert_eq!(
             map_status(429, Some("120")),
-            Some(ApiError::RateLimited { retry_after: Some(120) })
+            Some(ApiError::RateLimited {
+                retry_after: Some(120)
+            })
         );
         assert_eq!(map_status(503, None), Some(ApiError::Server(503)));
         assert_eq!(map_status(404, None), Some(ApiError::Http(404)));
@@ -186,7 +207,10 @@ mod tests {
             map_status(429, Some("Wed, 21 Oct 2026 07:28:00 GMT")),
             Some(ApiError::RateLimited { retry_after: None })
         );
-        assert_eq!(map_status(429, Some("-5")), Some(ApiError::RateLimited { retry_after: None }));
+        assert_eq!(
+            map_status(429, Some("-5")),
+            Some(ApiError::RateLimited { retry_after: None })
+        );
     }
 
     #[test]
@@ -194,8 +218,10 @@ mod tests {
         let p = parse_profile(include_str!("../tests/fixtures/profile.json")).unwrap();
         assert_eq!(p.email.as_deref(), Some("user@example.com"));
         assert_eq!(p.plan.as_deref(), Some("Pro"));
-        let max = parse_profile(r#"{"account":{"email":"a@b.c","has_claude_max":true,"has_claude_pro":true}}"#)
-            .unwrap();
+        let max = parse_profile(
+            r#"{"account":{"email":"a@b.c","has_claude_max":true,"has_claude_pro":true}}"#,
+        )
+        .unwrap();
         assert_eq!(max.plan.as_deref(), Some("Max"));
         assert_eq!(parse_profile("nope"), None);
     }

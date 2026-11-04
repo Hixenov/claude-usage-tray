@@ -27,7 +27,10 @@ pub fn next_delay(ctx: &PollCtx, s: &Settings) -> Duration {
         None => {
             let base = if ctx.popup_open {
                 POPUP_DELAY
-            } else if ctx.last_change.is_some_and(|c| ctx.now - c <= ACTIVE_WINDOW) {
+            } else if ctx
+                .last_change
+                .is_some_and(|c| ctx.now - c <= ACTIVE_WINDOW)
+            {
                 Duration::seconds(s.poll_active_secs as i64)
             } else {
                 Duration::seconds(s.poll_idle_secs as i64)
@@ -45,26 +48,39 @@ pub fn next_delay(ctx: &PollCtx, s: &Settings) -> Duration {
 pub fn next_backoff(prev: Option<Duration>, err: &ApiError) -> Option<Duration> {
     match err {
         ApiError::AuthExpired => Some(BACKOFF_START),
-        ApiError::RateLimited { retry_after: Some(n) } => {
+        ApiError::RateLimited {
+            retry_after: Some(n),
+        } => {
             let secs = i64::try_from(*n).unwrap_or(i64::MAX / 2);
             Some(Duration::seconds(secs).clamp(MIN_DELAY, BACKOFF_MAX))
         }
-        ApiError::RateLimited { retry_after: None } | ApiError::Server(_) | ApiError::Network(_) => {
-            Some(prev.map_or(BACKOFF_START, |p: Duration| (p * 2_i32).clamp(BACKOFF_START, BACKOFF_MAX)))
-        }
+        ApiError::RateLimited { retry_after: None }
+        | ApiError::Server(_)
+        | ApiError::Network(_) => Some(prev.map_or(BACKOFF_START, |p: Duration| {
+            (p * 2_i32).clamp(BACKOFF_START, BACKOFF_MAX)
+        })),
         ApiError::NoToken | ApiError::Http(_) | ApiError::Malformed => None,
     }
 }
 
 /// Earliest reset time still in the future.
 pub fn next_reset(snap: &Snapshot, now: OffsetDateTime) -> Option<OffsetDateTime> {
-    snap.quotas.iter().filter_map(|q| q.resets_at).filter(|r| *r > now).min()
+    snap.quotas
+        .iter()
+        .filter_map(|q| q.resets_at)
+        .filter(|r| *r > now)
+        .min()
 }
 
 /// True when any quota appeared, disappeared or changed utilization.
 pub fn utilization_changed(prev: Option<&Snapshot>, next: &Snapshot) -> bool {
     let Some(prev) = prev else { return true };
-    let pairs = |s: &Snapshot| s.quotas.iter().map(|q| (q.key.clone(), q.utilization)).collect::<Vec<_>>();
+    let pairs = |s: &Snapshot| {
+        s.quotas
+            .iter()
+            .map(|q| (q.key.clone(), q.utilization))
+            .collect::<Vec<_>>()
+    };
     pairs(prev) != pairs(next)
 }
 
@@ -125,12 +141,21 @@ fn apply(
     let now = OffsetDateTime::now_utc();
     match result {
         Ok(quotas) => {
-            let snap = Snapshot { quotas, fetched_at: now };
+            let snap = Snapshot {
+                quotas,
+                fetched_at: now,
+            };
             if utilization_changed(st.snapshot.as_ref(), &snap) {
                 st.last_change = Some(now);
             }
             let mut fired = shared.fired.lock().unwrap();
-            let alerts = crate::alerts::evaluate(st.snapshot.as_ref(), &snap, &mut fired, &shared.settings, now);
+            let alerts = crate::alerts::evaluate(
+                st.snapshot.as_ref(),
+                &snap,
+                &mut fired,
+                &shared.settings,
+                now,
+            );
             st.snapshot = Some(snap);
             st.last_error = None;
             *backoff = None;
@@ -152,14 +177,23 @@ fn alert_text(app: &tauri::AppHandle, alert: &crate::alerts::Alert) -> String {
     let shared = app.state::<crate::Shared>();
     let s = &shared.strings;
     match alert {
-        Alert::Threshold { key, utilization, resets_at, .. } => {
+        Alert::Threshold {
+            key,
+            utilization,
+            resets_at,
+            ..
+        } => {
             let time = resets_at
                 .map(|r| format_duration(r - OffsetDateTime::now_utc(), s.lang()))
                 .unwrap_or_else(|| "—".into());
             let percent = format!("{}", utilization.round().clamp(0.0, 100.0));
             fill(
                 s.t("alert_threshold"),
-                &[("name", &quota_name(key, s.lang())), ("percent", &percent), ("time", &time)],
+                &[
+                    ("name", &quota_name(key, s.lang())),
+                    ("percent", &percent),
+                    ("time", &time),
+                ],
             )
         }
         Alert::Reset { key } => fill(s.t("alert_reset"), &[("name", &quota_name(key, s.lang()))]),
@@ -206,7 +240,13 @@ mod tests {
     const NOW: OffsetDateTime = datetime!(2026-11-04 12:00 UTC);
 
     fn ctx() -> PollCtx {
-        PollCtx { now: NOW, last_change: None, next_reset: None, popup_open: false, backoff: None }
+        PollCtx {
+            now: NOW,
+            last_change: None,
+            next_reset: None,
+            popup_open: false,
+            backoff: None,
+        }
     }
 
     fn snap(items: &[(&str, f64, Option<OffsetDateTime>)]) -> Snapshot {
@@ -228,38 +268,64 @@ mod tests {
     fn idle_and_active_intervals() {
         let s = Settings::default();
         assert_eq!(next_delay(&ctx(), &s), Duration::seconds(600));
-        let recent = PollCtx { last_change: Some(NOW - Duration::minutes(5)), ..ctx() };
+        let recent = PollCtx {
+            last_change: Some(NOW - Duration::minutes(5)),
+            ..ctx()
+        };
         assert_eq!(next_delay(&recent, &s), Duration::seconds(180));
-        let old = PollCtx { last_change: Some(NOW - Duration::minutes(20)), ..ctx() };
+        let old = PollCtx {
+            last_change: Some(NOW - Duration::minutes(20)),
+            ..ctx()
+        };
         assert_eq!(next_delay(&old, &s), Duration::seconds(600));
     }
 
     #[test]
     fn popup_open_is_one_minute() {
-        let c = PollCtx { popup_open: true, ..ctx() };
+        let c = PollCtx {
+            popup_open: true,
+            ..ctx()
+        };
         assert_eq!(next_delay(&c, &Settings::default()), Duration::seconds(60));
     }
 
     #[test]
     fn aligns_to_reset() {
-        let c = PollCtx { next_reset: Some(NOW + Duration::minutes(2)), ..ctx() };
+        let c = PollCtx {
+            next_reset: Some(NOW + Duration::minutes(2)),
+            ..ctx()
+        };
         assert_eq!(next_delay(&c, &Settings::default()), Duration::seconds(150));
     }
 
     #[test]
     fn never_below_30s() {
         let s = Settings::default();
-        let past = PollCtx { next_reset: Some(NOW - Duration::minutes(1)), ..ctx() };
+        let past = PollCtx {
+            next_reset: Some(NOW - Duration::minutes(1)),
+            ..ctx()
+        };
         assert_eq!(next_delay(&past, &s), Duration::seconds(30));
-        let tiny = PollCtx { backoff: Some(Duration::seconds(5)), ..ctx() };
+        let tiny = PollCtx {
+            backoff: Some(Duration::seconds(5)),
+            ..ctx()
+        };
         assert_eq!(next_delay(&tiny, &s), Duration::seconds(30));
-        let fast = Settings { poll_active_secs: 1, poll_idle_secs: 1, ..Settings::default() };
+        let fast = Settings {
+            poll_active_secs: 1,
+            poll_idle_secs: 1,
+            ..Settings::default()
+        };
         assert_eq!(next_delay(&ctx(), &fast), Duration::seconds(30));
     }
 
     #[test]
     fn backoff_overrides_base() {
-        let c = PollCtx { backoff: Some(Duration::seconds(240)), popup_open: true, ..ctx() };
+        let c = PollCtx {
+            backoff: Some(Duration::seconds(240)),
+            popup_open: true,
+            ..ctx()
+        };
         assert_eq!(next_delay(&c, &Settings::default()), Duration::seconds(240));
     }
 
@@ -267,18 +333,29 @@ mod tests {
     fn backoff_doubles_and_caps() {
         let e = ApiError::Network("x".into());
         assert_eq!(next_backoff(None, &e), Some(Duration::seconds(60)));
-        assert_eq!(next_backoff(Some(Duration::seconds(60)), &e), Some(Duration::seconds(120)));
-        assert_eq!(next_backoff(Some(Duration::seconds(600)), &e), Some(Duration::seconds(900)));
+        assert_eq!(
+            next_backoff(Some(Duration::seconds(60)), &e),
+            Some(Duration::seconds(120))
+        );
+        assert_eq!(
+            next_backoff(Some(Duration::seconds(600)), &e),
+            Some(Duration::seconds(900))
+        );
         assert_eq!(
             next_backoff(None, &ApiError::RateLimited { retry_after: None }),
             Some(Duration::seconds(60))
         );
-        assert_eq!(next_backoff(None, &ApiError::Server(502)), Some(Duration::seconds(60)));
+        assert_eq!(
+            next_backoff(None, &ApiError::Server(502)),
+            Some(Duration::seconds(60))
+        );
     }
 
     #[test]
     fn retry_after_respected() {
-        let e = |n| ApiError::RateLimited { retry_after: Some(n) };
+        let e = |n| ApiError::RateLimited {
+            retry_after: Some(n),
+        };
         assert_eq!(next_backoff(None, &e(120)), Some(Duration::seconds(120)));
         assert_eq!(next_backoff(None, &e(1)), Some(Duration::seconds(30)));
         assert_eq!(next_backoff(None, &e(99_999)), Some(Duration::seconds(900)));
@@ -295,7 +372,10 @@ mod tests {
     #[test]
     fn no_backoff_for_http() {
         assert_eq!(next_backoff(None, &ApiError::Http(404)), None);
-        assert_eq!(next_backoff(Some(Duration::seconds(120)), &ApiError::NoToken), None);
+        assert_eq!(
+            next_backoff(Some(Duration::seconds(120)), &ApiError::NoToken),
+            None
+        );
         assert_eq!(next_backoff(None, &ApiError::Malformed), None);
     }
 
@@ -315,7 +395,13 @@ mod tests {
         let a = snap(&[("five_hour", 42.0, None)]);
         assert!(utilization_changed(None, &a));
         assert!(!utilization_changed(Some(&a), &a.clone()));
-        assert!(utilization_changed(Some(&a), &snap(&[("five_hour", 43.0, None)])));
-        assert!(utilization_changed(Some(&a), &snap(&[("seven_day", 42.0, None)])));
+        assert!(utilization_changed(
+            Some(&a),
+            &snap(&[("five_hour", 43.0, None)])
+        ));
+        assert!(utilization_changed(
+            Some(&a),
+            &snap(&[("seven_day", 42.0, None)])
+        ));
     }
 }

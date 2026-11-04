@@ -24,7 +24,12 @@ mod tests {
     const NOW: OffsetDateTime = datetime!(2026-11-04 12:00 UTC);
 
     fn quota(key: &str, utilization: f64, resets_at: Option<OffsetDateTime>) -> Quota {
-        Quota { key: key.into(), utilization, resets_at, period: Period::from_key(key) }
+        Quota {
+            key: key.into(),
+            utilization,
+            resets_at,
+            period: Period::from_key(key),
+        }
     }
 
     #[test]
@@ -58,7 +63,10 @@ mod tests {
     fn ahead_of_pace() {
         let q = quota("five_hour", 60.0, Some(NOW + Duration::minutes(150)));
         assert!(is_ahead(&q, NOW));
-        assert!(!is_ahead(&quota("five_hour", 40.0, Some(NOW + Duration::minutes(150))), NOW));
+        assert!(!is_ahead(
+            &quota("five_hour", 40.0, Some(NOW + Duration::minutes(150))),
+            NOW
+        ));
         assert!(!is_ahead(&quota("five_hour", 99.0, None), NOW));
     }
 }

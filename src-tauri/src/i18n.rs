@@ -124,7 +124,10 @@ mod tests {
     fn format_durations() {
         assert_eq!(format_duration(Duration::minutes(14), Lang::Ru), "14 мин");
         assert_eq!(format_duration(Duration::minutes(134), Lang::En), "2h 14m");
-        assert_eq!(format_duration(Duration::minutes(134), Lang::Ru), "2 ч 14 мин");
+        assert_eq!(
+            format_duration(Duration::minutes(134), Lang::Ru),
+            "2 ч 14 мин"
+        );
         assert_eq!(format_duration(Duration::hours(76), Lang::Ru), "3 д 4 ч");
         assert_eq!(format_duration(Duration::hours(76), Lang::En), "3d 4h");
         assert_eq!(format_duration(Duration::seconds(30), Lang::En), "1m");
@@ -141,7 +144,10 @@ mod tests {
         assert_eq!(quota_name("five_hour", Lang::Ru), "5 часов");
         assert_eq!(quota_name("seven_day", Lang::En), "7 days");
         assert_eq!(quota_name("seven_day_opus", Lang::Ru), "7 дней · Opus");
-        assert_eq!(quota_name("seven_day_oauth_apps", Lang::En), "7 days · Oauth apps");
+        assert_eq!(
+            quota_name("seven_day_oauth_apps", Lang::En),
+            "7 days · Oauth apps"
+        );
         assert_eq!(quota_name("monthly_cap", Lang::En), "Monthly cap");
         assert_eq!(quota_short("five_hour", Lang::Ru), "5ч");
         assert_eq!(quota_short("seven_day", Lang::En), "7d");
@@ -150,14 +156,35 @@ mod tests {
 
     #[test]
     fn locales_have_same_keys() {
-        let keys = |lang| Strings::new(lang).all().keys().cloned().collect::<BTreeSet<_>>();
+        let keys = |lang| {
+            Strings::new(lang)
+                .all()
+                .keys()
+                .cloned()
+                .collect::<BTreeSet<_>>()
+        };
         let ru = keys(Lang::Ru);
         assert_eq!(ru, keys(Lang::En));
         for k in [
-            "menu_open", "menu_refresh", "menu_autostart", "menu_quit", "tooltip_updated_ago",
-            "err_no_token", "err_auth_expired", "err_rate_limited", "err_network", "err_server",
-            "err_http", "err_settings", "popup_updated", "popup_refresh", "popup_stale",
-            "popup_resets_in", "alert_threshold", "alert_reset", "app_name",
+            "menu_open",
+            "menu_refresh",
+            "menu_autostart",
+            "menu_quit",
+            "tooltip_updated_ago",
+            "err_no_token",
+            "err_auth_expired",
+            "err_rate_limited",
+            "err_network",
+            "err_server",
+            "err_http",
+            "err_settings",
+            "popup_updated",
+            "popup_refresh",
+            "popup_stale",
+            "popup_resets_in",
+            "alert_threshold",
+            "alert_reset",
+            "app_name",
         ] {
             assert!(ru.contains(k), "missing key {k}");
         }

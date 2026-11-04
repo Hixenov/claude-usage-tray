@@ -38,7 +38,12 @@ impl Keychain for SystemKeychain {
     #[cfg(target_os = "macos")]
     fn read(&self) -> Option<String> {
         let out = std::process::Command::new("/usr/bin/security")
-            .args(["find-generic-password", "-s", "Claude Code-credentials", "-w"])
+            .args([
+                "find-generic-password",
+                "-s",
+                "Claude Code-credentials",
+                "-w",
+            ])
             .output()
             .ok()?;
         if !out.status.success() {
@@ -88,8 +93,14 @@ pub fn find_credentials(
     keychain: &dyn Keychain,
     config_dir: &Path,
 ) -> Result<Credentials, CredError> {
-    if let Some(t) = env_token.map(|t| t.trim().to_string()).filter(|t| !t.is_empty()) {
-        return Ok(Credentials { access_token: t, expires_at_ms: None });
+    if let Some(t) = env_token
+        .map(|t| t.trim().to_string())
+        .filter(|t| !t.is_empty())
+    {
+        return Ok(Credentials {
+            access_token: t,
+            expires_at_ms: None,
+        });
     }
     if let Some(json) = keychain.read() {
         return parse_credentials_json(&json);
@@ -102,7 +113,11 @@ pub fn find_credentials(
 }
 
 pub fn load() -> Result<Credentials, CredError> {
-    find_credentials(std::env::var("CLAUDE_CODE_OAUTH_TOKEN").ok(), &SystemKeychain, &config_dir())
+    find_credentials(
+        std::env::var("CLAUDE_CODE_OAUTH_TOKEN").ok(),
+        &SystemKeychain,
+        &config_dir(),
+    )
 }
 
 #[cfg(test)]
@@ -146,12 +161,18 @@ mod tests {
 
     #[test]
     fn missing_or_empty_token_is_malformed() {
-        assert!(matches!(parse_credentials_json(r#"{"claudeAiOauth":{}}"#), Err(CredError::Malformed)));
+        assert!(matches!(
+            parse_credentials_json(r#"{"claudeAiOauth":{}}"#),
+            Err(CredError::Malformed)
+        ));
         assert!(matches!(
             parse_credentials_json(r#"{"claudeAiOauth":{"accessToken":""}}"#),
             Err(CredError::Malformed)
         ));
-        assert!(matches!(parse_credentials_json(r#"{"other":1}"#), Err(CredError::Malformed)));
+        assert!(matches!(
+            parse_credentials_json(r#"{"other":1}"#),
+            Err(CredError::Malformed)
+        ));
     }
 
     #[test]
@@ -165,7 +186,8 @@ mod tests {
     #[test]
     fn env_wins_over_keychain_and_file() {
         let d = dir_with_file("env", "f");
-        let c = find_credentials(Some("e".into()), &FakeKeychain(Some(cred_json("k"))), &d).unwrap();
+        let c =
+            find_credentials(Some("e".into()), &FakeKeychain(Some(cred_json("k"))), &d).unwrap();
         assert_eq!(c.access_token, "e");
     }
 
@@ -193,12 +215,18 @@ mod tests {
     #[test]
     fn nothing_found() {
         let d = temp_dir("none");
-        assert!(matches!(find_credentials(None, &FakeKeychain(None), &d), Err(CredError::NotFound)));
+        assert!(matches!(
+            find_credentials(None, &FakeKeychain(None), &d),
+            Err(CredError::NotFound)
+        ));
     }
 
     #[test]
     fn debug_hides_token() {
-        let c = Credentials { access_token: "secret".into(), expires_at_ms: None };
+        let c = Credentials {
+            access_token: "secret".into(),
+            expires_at_ms: None,
+        };
         assert!(!format!("{c:?}").contains("secret"));
     }
 }

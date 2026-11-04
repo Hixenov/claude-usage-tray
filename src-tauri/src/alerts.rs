@@ -8,8 +8,15 @@ use time::OffsetDateTime;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Alert {
-    Threshold { key: String, threshold: u8, utilization: f64, resets_at: Option<OffsetDateTime> },
-    Reset { key: String },
+    Threshold {
+        key: String,
+        threshold: u8,
+        utilization: f64,
+        resets_at: Option<OffsetDateTime>,
+    },
+    Reset {
+        key: String,
+    },
 }
 
 /// Thresholds already handled, per quota window: `(key, threshold, resets_at unix)`.
@@ -29,10 +36,15 @@ pub fn evaluate(
     let mut thresholds = s.thresholds.clone();
     thresholds.sort_unstable();
     let mut alerts = Vec::new();
-    for q in next.quotas.iter().filter(|q| !s.hidden_quotas.contains(&q.key)) {
+    for q in next
+        .quotas
+        .iter()
+        .filter(|q| !s.hidden_quotas.contains(&q.key))
+    {
         let old = prev.and_then(|p| p.quotas.iter().find(|o| o.key == q.key));
         if let Some(old) = old {
-            if s.notify_reset && old.resets_at != q.resets_at && old.utilization >= RESET_ALERT_MIN {
+            if s.notify_reset && old.resets_at != q.resets_at && old.utilization >= RESET_ALERT_MIN
+            {
                 alerts.push(Alert::Reset { key: q.key.clone() });
             }
         }
@@ -126,14 +138,23 @@ mod tests {
             snap(&[("five_hour", 96.0, R1)]),
         );
         evaluate(None, &a, &mut f, &s, NOW);
-        assert_eq!(thresholds(&evaluate(Some(&a), &b, &mut f, &s, NOW)), vec![80]);
+        assert_eq!(
+            thresholds(&evaluate(Some(&a), &b, &mut f, &s, NOW)),
+            vec![80]
+        );
         assert!(evaluate(Some(&b), &c, &mut f, &s, NOW).is_empty());
-        assert_eq!(thresholds(&evaluate(Some(&c), &d, &mut f, &s, NOW)), vec![95]);
+        assert_eq!(
+            thresholds(&evaluate(Some(&c), &d, &mut f, &s, NOW)),
+            vec![95]
+        );
     }
 
     #[test]
     fn jump_over_two_thresholds_fires_both() {
-        let steps = [snap(&[("seven_day", 70.0, R1)]), snap(&[("seven_day", 97.0, R1)])];
+        let steps = [
+            snap(&[("seven_day", 70.0, R1)]),
+            snap(&[("seven_day", 97.0, R1)]),
+        ];
         assert_eq!(thresholds(&run(&steps, &Settings::default())), vec![80, 95]);
     }
 
@@ -150,32 +171,79 @@ mod tests {
     #[test]
     fn reset_alert_only_if_was_high() {
         let s = Settings::default();
-        let high = run(&[snap(&[("five_hour", 90.0, R1)]), snap(&[("five_hour", 2.0, R2)])], &s);
-        assert_eq!(high, vec![Alert::Reset { key: "five_hour".into() }]);
-        let low = run(&[snap(&[("five_hour", 50.0, R1)]), snap(&[("five_hour", 2.0, R2)])], &s);
+        let high = run(
+            &[
+                snap(&[("five_hour", 90.0, R1)]),
+                snap(&[("five_hour", 2.0, R2)]),
+            ],
+            &s,
+        );
+        assert_eq!(
+            high,
+            vec![Alert::Reset {
+                key: "five_hour".into()
+            }]
+        );
+        let low = run(
+            &[
+                snap(&[("five_hour", 50.0, R1)]),
+                snap(&[("five_hour", 2.0, R2)]),
+            ],
+            &s,
+        );
         assert!(low.is_empty());
-        let off = Settings { notify_reset: false, ..Settings::default() };
-        assert!(run(&[snap(&[("five_hour", 90.0, R1)]), snap(&[("five_hour", 2.0, R2)])], &off)
-            .is_empty());
+        let off = Settings {
+            notify_reset: false,
+            ..Settings::default()
+        };
+        assert!(run(
+            &[
+                snap(&[("five_hour", 90.0, R1)]),
+                snap(&[("five_hour", 2.0, R2)])
+            ],
+            &off
+        )
+        .is_empty());
     }
 
     #[test]
     fn pace_mode_suppresses_when_not_ahead() {
-        let s = Settings { pace_alerts: true, ..Settings::default() };
+        let s = Settings {
+            pace_alerts: true,
+            ..Settings::default()
+        };
         // 5h window resetting in 30 min → 90% of time elapsed; 82% used is behind pace.
         let r = NOW + Duration::minutes(30);
-        let behind = run(&[snap(&[("five_hour", 70.0, r)]), snap(&[("five_hour", 82.0, r)])], &s);
+        let behind = run(
+            &[
+                snap(&[("five_hour", 70.0, r)]),
+                snap(&[("five_hour", 82.0, r)]),
+            ],
+            &s,
+        );
         assert!(behind.is_empty());
         // Resetting in 4.5h → 10% elapsed; 82% used is ahead of pace.
         let r = NOW + Duration::minutes(270);
-        let ahead = run(&[snap(&[("five_hour", 70.0, r)]), snap(&[("five_hour", 82.0, r)])], &s);
+        let ahead = run(
+            &[
+                snap(&[("five_hour", 70.0, r)]),
+                snap(&[("five_hour", 82.0, r)]),
+            ],
+            &s,
+        );
         assert_eq!(thresholds(&ahead), vec![80]);
     }
 
     #[test]
     fn hidden_quota_ignored() {
-        let s = Settings { hidden_quotas: vec!["five_hour".into()], ..Settings::default() };
-        let steps = [snap(&[("five_hour", 70.0, R1)]), snap(&[("five_hour", 99.0, R1)])];
+        let s = Settings {
+            hidden_quotas: vec!["five_hour".into()],
+            ..Settings::default()
+        };
+        let steps = [
+            snap(&[("five_hour", 70.0, R1)]),
+            snap(&[("five_hour", 99.0, R1)]),
+        ];
         assert!(run(&steps, &s).is_empty());
     }
 }

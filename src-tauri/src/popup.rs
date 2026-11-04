@@ -5,7 +5,9 @@ use crate::{poller, Shared};
 use std::collections::HashMap;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter, LogicalSize, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri::{
+    AppHandle, Emitter, LogicalSize, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent,
+};
 use tauri_plugin_positioner::{Position, WindowExt};
 
 pub const LABEL: &str = "popup";
@@ -20,7 +22,7 @@ pub fn show(app: &AppHandle) {
         return;
     }
     if let Err(e) = create(app) {
-        eprintln!("claude-usage-monitor: cannot open popup: {e}");
+        eprintln!("claude-usage-tray: cannot open popup: {e}");
     }
 }
 
@@ -53,23 +55,26 @@ fn create(app: &AppHandle) -> tauri::Result<()> {
     window.on_window_event(move |event| {
         dbg_log(&format!("popup event: {event:?}"));
         match event {
-        // A hidden window also gets focus events while it is being created;
-        // only a blur of the visible popup means "user clicked elsewhere".
-        WindowEvent::Focused(false) => {
-            if let Some(w) = handle.get_webview_window(LABEL) {
-                if w.is_visible().unwrap_or(false) {
-                    let _ = w.destroy();
+            // A hidden window also gets focus events while it is being created;
+            // only a blur of the visible popup means "user clicked elsewhere".
+            WindowEvent::Focused(false) => {
+                if let Some(w) = handle.get_webview_window(LABEL) {
+                    if w.is_visible().unwrap_or(false) {
+                        let _ = w.destroy();
+                    }
                 }
             }
+            WindowEvent::Destroyed => {
+                let shared = handle.state::<Shared>();
+                shared.popup_open.store(false, Ordering::Relaxed);
+                *shared.popup_closed_at.lock().unwrap() = Some(Instant::now());
+            }
+            _ => {}
         }
-        WindowEvent::Destroyed => {
-            let shared = handle.state::<Shared>();
-            shared.popup_open.store(false, Ordering::Relaxed);
-            *shared.popup_closed_at.lock().unwrap() = Some(Instant::now());
-        }
-        _ => {}
-    }});
-    app.state::<Shared>().popup_open.store(true, Ordering::Relaxed);
+    });
+    app.state::<Shared>()
+        .popup_open
+        .store(true, Ordering::Relaxed);
     poller::request_refresh(app);
     Ok(())
 }
@@ -94,7 +99,12 @@ pub fn emit_state(app: &AppHandle) {
 fn current_view(app: &AppHandle) -> PopupView {
     let shared = app.state::<Shared>();
     let st = shared.state.lock().unwrap();
-    build_view(&st, &shared.settings, &shared.strings, time::OffsetDateTime::now_utc())
+    build_view(
+        &st,
+        &shared.settings,
+        &shared.strings,
+        time::OffsetDateTime::now_utc(),
+    )
 }
 
 #[tauri::command]
@@ -124,7 +134,9 @@ pub fn close_popup(app: AppHandle) {
 #[tauri::command]
 pub fn fit_popup(app: AppHandle, height: f64) {
     dbg_log(&format!("popup: fit {height}"));
-    let Some(w) = app.get_webview_window(LABEL) else { return };
+    let Some(w) = app.get_webview_window(LABEL) else {
+        return;
+    };
     let _ = w.set_size(LogicalSize::new(WIDTH, height.clamp(80.0, MAX_HEIGHT)));
     let _ = w.as_ref().window().move_window(position(&app));
     if !w.is_visible().unwrap_or(false) {

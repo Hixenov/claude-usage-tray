@@ -39,7 +39,10 @@ pub fn search_dirs() -> Vec<PathBuf> {
     if let Some(d) = std::env::var_os("CLAUDE_CONFIG_DIR").filter(|d| !d.is_empty()) {
         dirs.push(PathBuf::from(d));
     }
-    if let Some(d) = std::env::current_exe().ok().and_then(|p| p.parent().map(PathBuf::from)) {
+    if let Some(d) = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(PathBuf::from))
+    {
         dirs.push(d);
     }
     dirs.push(crate::credentials::home_dir().join(".claude"));
@@ -54,11 +57,19 @@ pub fn load_from(dirs: &[PathBuf]) -> (Settings, Option<String>) {
         let text = match std::fs::read_to_string(&path) {
             Ok(t) => t,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(e) => return (Settings::default(), Some(format!("{}: {e}", path.display()))),
+            Err(e) => {
+                return (
+                    Settings::default(),
+                    Some(format!("{}: {e}", path.display())),
+                )
+            }
         };
         return match serde_json::from_str::<Settings>(&text) {
             Ok(s) => (s, None),
-            Err(e) => (Settings::default(), Some(format!("{}: {e}", path.display()))),
+            Err(e) => (
+                Settings::default(),
+                Some(format!("{}: {e}", path.display())),
+            ),
         };
     }
     (Settings::default(), None)
@@ -88,7 +99,10 @@ mod tests {
         assert!(!s.pace_alerts);
         assert_eq!((s.poll_active_secs, s.poll_idle_secs), (180, 600));
         assert!(s.hidden_quotas.is_empty());
-        assert_eq!(s.tray_bars, vec!["five_hour".to_string(), "seven_day".to_string()]);
+        assert_eq!(
+            s.tray_bars,
+            vec!["five_hour".to_string(), "seven_day".to_string()]
+        );
     }
 
     #[test]
@@ -122,6 +136,9 @@ mod tests {
     fn first_dir_wins() {
         let a = dir("first-a", Some(r#"{"language":"ru"}"#));
         let b = dir("first-b", Some(r#"{"language":"en"}"#));
-        assert_eq!(load_from(&[dir("first-empty", None), a, b]).0.language, "ru");
+        assert_eq!(
+            load_from(&[dir("first-empty", None), a, b]).0.language,
+            "ru"
+        );
     }
 }

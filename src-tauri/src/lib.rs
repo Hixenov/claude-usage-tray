@@ -62,7 +62,9 @@ pub fn run() {
 
     tauri::Builder::default()
         // Must be the first plugin: a second launch just opens the popup of the first.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| popup::show(app)))
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            popup::show(app)
+        }))
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -83,12 +85,15 @@ pub fn run() {
 
             let handle = app.handle().clone();
             if let Err(e) = tray::create(&handle) {
-                eprintln!("claude-usage-monitor: system tray is not available: {e}");
+                eprintln!("claude-usage-tray: system tray is not available: {e}");
                 notify(&handle, &format!("System tray is not available: {e}"));
                 std::process::exit(1);
             }
             if let Some(msg) = settings_err {
-                let text = view::fill(handle.state::<Shared>().strings.t("err_settings"), &[("msg", &msg)]);
+                let text = view::fill(
+                    handle.state::<Shared>().strings.t("err_settings"),
+                    &[("msg", &msg)],
+                );
                 notify(&handle, &text);
             }
             poller::spawn(handle);
@@ -98,7 +103,10 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|_app, event| {
             // Closing the popup must not quit the tray app.
-            if let RunEvent::ExitRequested { code: None, api, .. } = event {
+            if let RunEvent::ExitRequested {
+                code: None, api, ..
+            } = event
+            {
                 api.prevent_exit();
             }
         });

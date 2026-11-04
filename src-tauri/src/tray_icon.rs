@@ -78,12 +78,19 @@ impl Canvas {
 
 /// RGBA buffer of `size × size` pixels.
 pub fn render(bars: &[Option<Bar>], error: bool, size: u32, dark_panel: bool) -> Vec<u8> {
-    let mut c = Canvas { size, px: vec![0; (size * size * 4) as usize] };
+    let mut c = Canvas {
+        size,
+        px: vec![0; (size * size * 4) as usize],
+    };
     if error {
         draw_error(&mut c);
         return c.px;
     }
-    let track = if dark_panel { [255, 255, 255] } else { [0, 0, 0] };
+    let track = if dark_panel {
+        [255, 255, 255]
+    } else {
+        [0, 0, 0]
+    };
     let width = size.saturating_sub(2);
     for (i, (y0, h)) in bar_rows(size).into_iter().enumerate() {
         c.rect(1, y0, width, h, track, 80);
@@ -161,7 +168,10 @@ mod tests {
 
     #[test]
     fn buffer_size() {
-        assert_eq!(render(&[None, None], false, SIZE, true).len(), (SIZE * SIZE * 4) as usize);
+        assert_eq!(
+            render(&[None, None], false, SIZE, true).len(),
+            (SIZE * SIZE * 4) as usize
+        );
     }
 
     #[test]
@@ -174,22 +184,66 @@ mod tests {
 
     #[test]
     fn fill_proportional() {
-        let px = render(&[Some(Bar { utilization: 50.0, color: BarColor::Blue }), None], false, SIZE, true);
+        let px = render(
+            &[
+                Some(Bar {
+                    utilization: 50.0,
+                    color: BarColor::Blue,
+                }),
+                None,
+            ],
+            false,
+            SIZE,
+            true,
+        );
         assert_eq!(rgb_at(&px, SIZE, 8, top_bar_y()), BLUE);
         assert_ne!(rgb_at(&px, SIZE, 24, top_bar_y()), BLUE);
     }
 
     #[test]
     fn over_100_clamped() {
-        let px = render(&[Some(Bar { utilization: 150.0, color: BarColor::Blue }), None], false, SIZE, true);
+        let px = render(
+            &[
+                Some(Bar {
+                    utilization: 150.0,
+                    color: BarColor::Blue,
+                }),
+                None,
+            ],
+            false,
+            SIZE,
+            true,
+        );
         assert_eq!(rgb_at(&px, SIZE, SIZE - 3, top_bar_y()), BLUE);
-        let neg = render(&[Some(Bar { utilization: -5.0, color: BarColor::Blue }), None], false, SIZE, true);
+        let neg = render(
+            &[
+                Some(Bar {
+                    utilization: -5.0,
+                    color: BarColor::Blue,
+                }),
+                None,
+            ],
+            false,
+            SIZE,
+            true,
+        );
         assert_ne!(rgb_at(&neg, SIZE, 2, top_bar_y()), BLUE);
     }
 
     #[test]
     fn second_bar_uses_its_own_row() {
-        let px = render(&[None, Some(Bar { utilization: 100.0, color: BarColor::Red })], false, SIZE, true);
+        let px = render(
+            &[
+                None,
+                Some(Bar {
+                    utilization: 100.0,
+                    color: BarColor::Red,
+                }),
+            ],
+            false,
+            SIZE,
+            true,
+        );
         let (y0, h) = bar_rows(SIZE)[1];
         assert_eq!(rgb_at(&px, SIZE, 16, y0 + h / 2), RED);
         assert_ne!(rgb_at(&px, SIZE, 16, top_bar_y()), RED);
@@ -197,18 +251,27 @@ mod tests {
 
     #[test]
     fn light_and_dark_panels_differ() {
-        assert_ne!(render(&[None, None], false, SIZE, true), render(&[None, None], false, SIZE, false));
+        assert_ne!(
+            render(&[None, None], false, SIZE, true),
+            render(&[None, None], false, SIZE, false)
+        );
     }
 
     #[test]
     fn error_icon_differs() {
-        assert_ne!(render(&[None, None], true, SIZE, true), render(&[None, None], false, SIZE, true));
+        assert_ne!(
+            render(&[None, None], true, SIZE, true),
+            render(&[None, None], false, SIZE, true)
+        );
     }
 
     #[test]
     fn other_sizes_render() {
         for size in [16, 22, 44, 64] {
-            assert_eq!(render(&[None, None], true, size, false).len(), (size * size * 4) as usize);
+            assert_eq!(
+                render(&[None, None], true, size, false).len(),
+                (size * size * 4) as usize
+            );
         }
     }
 }

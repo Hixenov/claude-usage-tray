@@ -1,5 +1,5 @@
 [package]
-name = "claude-usage-monitor"
+name = "claude-usage-tray"
 version = "0.1.0"
 description = "Lightweight tray monitor for Claude subscription usage limits"
 edition = "2021"
