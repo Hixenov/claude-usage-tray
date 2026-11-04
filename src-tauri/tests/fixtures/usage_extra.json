@@ -1,0 +1,9 @@
+{
+  "seven_day": { "utilization": 7.0, "resets_at": "2026-11-09T08:00:00+00:00" },
+  "extra_usage": { "is_enabled": true, "monthly_limit": 5000, "used_credits": 120, "utilization": 2.4, "currency": "USD", "daily": null },
+  "spend": { "used": { "amount_minor": 0, "currency": "USD", "exponent": 2 }, "percent": 0 },
+  "x": {},
+  "y": [1],
+  "z": 5,
+  "pace": null
+}
