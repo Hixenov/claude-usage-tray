@@ -1,5 +1,6 @@
 pub mod model;
 pub mod pace;
+pub mod poller;
 pub mod credentials;
 pub mod alerts;
 pub mod api;
